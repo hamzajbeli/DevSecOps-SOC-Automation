@@ -1,0 +1,45 @@
+---
+- name: Installer Suricata
+  hosts: vm-devsecops
+  become: yes
+  vars:
+    network_interface: "ens33"   # <-- Change selon ton interface
+
+  tasks:
+    - name: Installer Suricata
+      apt:
+        name: suricata
+        state: present
+        update_cache: yes
+
+    - name: Configurer l'interface réseau
+      replace:
+        path: /etc/suricata/suricata.yaml
+        regexp: 'interface: eth0'
+        replace: 'interface: {{ network_interface }}'
+
+    - name: Configurer HOME_NET
+      replace:
+        path: /etc/suricata/suricata.yaml
+        regexp: 'HOME_NET: "\[192\.168\.0\.0/16.*\]"'
+        replace: 'HOME_NET: "[192.168.137.0/24]"'
+
+    - name: Mettre à jour les règles Suricata
+      shell: suricata-update
+      ignore_errors: yes
+
+    - name: Activer et démarrer Suricata
+      systemd:
+        name: suricata
+        enabled: yes
+        state: started
+        daemon_reload: yes
+
+    - name: Vérifier le statut
+      shell: systemctl status suricata
+      register: status
+      ignore_errors: yes
+
+    - name: Afficher le statut
+      debug:
+        msg: "{{ status.stdout_lines }}"

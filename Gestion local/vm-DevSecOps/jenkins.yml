@@ -1,0 +1,47 @@
+---
+- name: Installer Jenkins sur vm-devsecops
+  hosts: vm-devsecops
+  become: yes
+
+  tasks:
+    - name: Installer dépendances
+      apt:
+        name:
+          - openjdk-17-jdk
+          - curl
+          - gnupg
+        state: present
+        update_cache: yes
+
+    - name: Créer dossier keyrings
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Télécharger clé Jenkins actuelle
+      get_url:
+        url: https://pkg.jenkins.io/debian-stable/jenkins.io-2026.key
+        dest: /etc/apt/keyrings/jenkins-keyring.asc
+        mode: '0644'
+
+    - name: Ajouter repository Jenkins
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/"
+        state: present
+        filename: jenkins
+
+    - name: Mettre à jour apt
+      apt:
+        update_cache: yes
+
+    - name: Installer Jenkins
+      apt:
+        name: jenkins
+        state: present
+
+    - name: Démarrer Jenkins
+      service:
+        name: jenkins
+        state: started
+        enabled: yes

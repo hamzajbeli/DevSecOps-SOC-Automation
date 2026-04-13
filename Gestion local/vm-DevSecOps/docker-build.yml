@@ -1,0 +1,26 @@
+- name: Docker build et push
+  hosts: vm-devsecops
+  become: yes
+  collections:
+    - community.docker
+
+  vars:
+    docker_user: "hamzajbeli"
+    docker_password: "Hamza123."
+    image_name: "hamzajbeli/devsecops-app"
+
+  tasks:
+
+    - name: Login Docker Hub
+      community.docker.docker_login:
+        username: "{{ docker_user }}"
+        password: "{{ docker_password }}"
+
+    - name: Build et push image Docker
+      community.docker.docker_image:
+        name: "{{ image_name }}"
+        build:
+          path: /home/ansible/app
+          pull: yes
+        push: yes
+        source: build   # <-- Ajoute cette ligne !

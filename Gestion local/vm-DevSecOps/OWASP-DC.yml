@@ -1,0 +1,41 @@
+---
+- name: Installer OWASP Dependency Check
+  hosts: vm-devsecops
+  become: yes
+  tasks:
+    - name: Installer Java
+      apt:
+        name: openjdk-11-jdk
+        state: present
+
+    - name: Installer unzip
+      apt:
+        name: unzip
+        state: present
+
+    - name: Supprimer ancien fichier si existant
+      file:
+        path: /opt/dependency-check.zip
+        state: absent
+
+    - name: Télécharger Dependency Check via wget
+      shell: |
+        wget -L --tries=3 --timeout=300 \
+        https://github.com/jeremylong/DependencyCheck/releases/download/v9.0.7/dependency-check-9.0.7-release.zip \
+        -O /opt/dependency-check.zip
+      args:
+        creates: /opt/dependency-check.zip
+
+    - name: Vérifier la taille du fichier
+      stat:
+        path: /opt/dependency-check.zip
+      register: dc_file
+
+    - name: Afficher la taille
+      debug:
+        msg: "Taille: {{ dc_file.stat.size }} bytes"
+
+    - name: Extraire Dependency Check
+      shell: unzip -o /opt/dependency-check.zip -d /opt/
+      args:
+        creates: /opt/dependency-check/bin/dependency-check.sh

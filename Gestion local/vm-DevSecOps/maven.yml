@@ -1,0 +1,13 @@
+---
+- name: installer maven
+  hosts: vm-devsecops
+  become: true
+  tasks:
+    - name: mise a jour cache apt
+      apt:
+        update_cache: yes
+
+    - name: installer maven
+      apt:
+        name: maven
+        state: present

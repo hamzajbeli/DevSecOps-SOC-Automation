@@ -1,0 +1,24 @@
+---
+- name: Installer Nexus Repository
+  hosts: vm-devsecops
+  become: yes
+  tasks:
+    - name: Installer Java
+      apt:
+        name: openjdk-17-jdk
+        state: present
+        update_cache: yes
+
+    - name: Télécharger Nexus
+      get_url:
+        url: https://download.sonatype.com/nexus/3/nexus-3.77.2-02-unix.tar.gz
+        dest: /opt/nexus.tar.gz
+        timeout: 300
+
+    - name: Extraire Nexus
+      shell: tar -xzf /opt/nexus.tar.gz -C /opt/ || true
+      args:
+        creates: /opt/nexus-3.77.2-02/bin/nexus
+
+    - name: Démarrer Nexus
+      shell: /opt/nexus-3.77.2-02/bin/nexus start

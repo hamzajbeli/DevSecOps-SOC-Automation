@@ -1,0 +1,32 @@
+---
+- name: Installer Shuffle SOAR
+  hosts: vm-soc
+  become: yes
+  tasks:
+
+    - name: Attendre que apt soit disponible
+      shell: |
+        while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+          echo "Waiting for apt lock..."
+          sleep 5
+        done
+      changed_when: false
+
+    - name: Installer git et docker-compose
+      apt:
+        name:
+          - git
+          - docker-compose
+        state: present
+        update_cache: yes
+
+    - name: Cloner le repository Shuffle
+      git:
+        repo: https://github.com/Shuffle/Shuffle.git
+        dest: /opt/shuffle
+        force: yes
+
+    - name: Lancer Shuffle avec Docker Compose
+      command: docker compose up -d
+      args:
+        chdir: /opt/shuffle

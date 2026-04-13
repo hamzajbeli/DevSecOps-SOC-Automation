@@ -1,0 +1,25 @@
+---
+- name: Installer Prometheus
+  hosts: vm-devsecops
+  become: yes
+  tasks:
+    - name: Supprimer ancien fichier si existant
+      file:
+        path: /opt/prometheus.tar.gz
+        state: absent
+
+    - name: Télécharger Prometheus
+      get_url:
+        url: https://github.com/prometheus/prometheus/releases/download/v2.49.1/prometheus-2.49.1.linux-amd64.tar.gz
+        dest: /opt/prometheus.tar.gz
+        timeout: 300
+
+    - name: Extraire Prometheus
+      shell: tar -xzf /opt/prometheus.tar.gz -C /opt/ || true
+      args:
+        creates: /opt/prometheus-2.49.1.linux-amd64/prometheus
+
+    - name: Lancer Prometheus
+      shell: nohup /opt/prometheus-2.49.1.linux-amd64/prometheus \
+             --config.file=/opt/prometheus-2.49.1.linux-amd64/prometheus.yml \
+             --web.listen-address=":9090" &

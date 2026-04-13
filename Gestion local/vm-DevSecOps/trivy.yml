@@ -1,0 +1,30 @@
+---
+- name: Installer Trivy
+  hosts: vm-devsecops
+  become: yes
+
+  tasks:
+
+    - name: Installer dépendances
+      apt:
+        name:
+          - wget
+          - apt-transport-https
+          - gnupg
+          - lsb-release
+        state: present
+        update_cache: yes
+
+    - name: Ajouter clé GPG Trivy
+      shell: |
+        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | apt-key add -
+
+    - name: Ajouter repository Trivy
+      shell: |
+        echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/trivy.list
+
+    - name: Installer Trivy
+      apt:
+        name: trivy
+        state: latest
+        update_cache: yes

@@ -1,0 +1,47 @@
+---
+- name: Installer MISP
+  hosts: vm-soc
+  become: yes
+  tasks:
+    - name: Installer dépendances de base
+      apt:
+        name:
+          - git
+          - curl
+          - python3
+          - python3-pip
+        state: present
+        update_cache: yes
+
+    - name: Configurer Git buffer
+      git_config:
+        name: http.postBuffer
+        scope: global
+        value: "524288000"
+
+    - name: Désactiver SSL verify Git
+      git_config:
+        name: http.sslVerify
+        scope: global
+        value: "false"
+
+    - name: Cloner MISP Docker (léger)
+      git:
+        repo: https://github.com/MISP/misp-docker.git
+        dest: /opt/misp
+        depth: 1
+        force: yes
+      environment:
+        GIT_SSL_NO_VERIFY: "true"
+
+    - name: Copier le fichier de configuration
+      copy:
+        src: /opt/misp/template.env
+        dest: /opt/misp/.env
+        remote_src: yes
+        force: no
+
+    - name: Démarrer MISP via Docker
+      shell: docker compose up -d
+      args:
+        chdir: /opt/misp

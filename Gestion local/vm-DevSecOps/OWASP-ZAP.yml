@@ -1,0 +1,29 @@
+---
+- name: Installer OWASP ZAP
+  hosts: vm-devsecops
+  become: yes
+
+  tasks:
+
+    - name: Installer Snapd
+      apt:
+        name: snapd
+        state: present
+        update_cache: yes
+
+    - name: Activer snapd
+      shell: |
+        sudo systemctl enable --now snapd.socket
+
+    - name: Installer ZAP via snap
+      shell: |
+        sudo snap install zaproxy --classic
+
+    - name: Vérifier installation ZAP
+      shell: zaproxy --version
+      register: zap_version
+      ignore_errors: yes
+
+    - name: Afficher version ZAP
+      debug:
+        msg: "Version ZAP installée : {{ zap_version.stdout }}"

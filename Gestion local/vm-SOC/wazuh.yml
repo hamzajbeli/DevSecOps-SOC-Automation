@@ -1,0 +1,60 @@
+---
+- name: Installer Wazuh All-in-One sur Ubuntu 22.04
+  hosts: vm-soc
+  become: yes
+  vars:
+    wazuh_version: "4.x"
+
+  pre_tasks:
+    - name: Vérifier que la machine est joignable
+      ping:
+
+    - name: Vérifier que Python 3 est installé
+      command: python3 --version
+      register: python_check
+      failed_when: python_check.rc != 0
+      changed_when: false
+
+  tasks:
+    - name: Installer les prérequis
+      apt:
+        name:
+          - apt-transport-https
+          - curl
+          - gnupg
+        state: present
+        update_cache: yes
+
+    - name: Ajouter la clé GPG Wazuh
+      apt_key:
+        url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
+        state: present
+
+    - name: Ajouter le dépôt Wazuh
+      apt_repository:
+        repo: "deb https://packages.wazuh.com/{{ wazuh_version }}/apt/ stable main"
+        state: present
+
+    - name: Mettre à jour la liste des paquets
+      apt:
+        update_cache: yes
+
+    - name: Installer Wazuh Manager, Indexer et Dashboard
+      apt:
+        name:
+          - wazuh-manager
+          - wazuh-indexer
+          - wazuh-dashboard
+        state: present
+        update_cache: yes
+        force_apt_get: yes
+
+    - name: Activer et démarrer les services Wazuh
+      service:
+        name: "{{ item }}"
+        state: started
+        enabled: yes
+      loop:
+        - wazuh-manager
+        - wazuh-indexer
+        - wazuh-dashboard

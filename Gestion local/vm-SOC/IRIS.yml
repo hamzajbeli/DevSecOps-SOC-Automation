@@ -1,0 +1,194 @@
+---
+- name: Installation IRIS IRP
+  hosts: vm-soc
+  become: true
+
+  vars:
+    iris_dir: "/opt/iris"
+    iris_https_port: 4433
+    iris_http_port: 8080
+
+  tasks:
+
+    # 🔹 Mise à jour du système
+    - name: Mise à jour du système
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    # 🔹 Dépendances utiles
+    - name: Installer dépendances utiles
+      apt:
+        name:
+          - curl
+          - git
+          - openssl
+          - ca-certificates
+          - apt-transport-https
+        state: present
+
+    # 🔹 Installation Docker si absent
+    - name: Vérifier si Docker est installé
+      command: docker --version
+      register: docker_check
+      failed_when: false
+      changed_when: false
+
+    - name: Installer Docker
+      block:
+        - name: Ajouter la clé GPG Docker
+          apt_key:
+            url: https://download.docker.com/linux/ubuntu/gpg
+            state: present
+
+        - name: Ajouter le dépôt Docker
+          apt_repository:
+            repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+            state: present
+
+        - name: Installer Docker et Compose
+          apt:
+            name:
+              - docker-ce
+              - docker-ce-cli
+              - containerd.io
+              - docker-compose-plugin
+            update_cache: true
+      when: docker_check.rc != 0
+
+    # 🔹 Démarrer et activer Docker
+    - name: Démarrer le service Docker
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Attendre que Docker soit prêt
+      wait_for:
+        path: /var/run/docker.sock
+        timeout: 30
+
+    # 🔹 Vérifier Docker Compose
+    - name: Vérifier Docker Compose
+      command: docker compose version
+      register: compose_check
+      failed_when: compose_check.rc != 0
+
+    # 🔹 Cloner IRIS
+    - name: Cloner IRIS
+      git:
+        repo: "https://github.com/dfir-iris/iris-web.git"
+        dest: "{{ iris_dir }}"
+        depth: 1
+        force: yes
+
+    # 🔹 Copier fichier .env
+    - name: Copier .env
+      copy:
+        src: "{{ iris_dir }}/.env.model"
+        dest: "{{ iris_dir }}/.env"
+        remote_src: true
+        force: false
+
+    # 🔹 Générer SECRET_KEY
+    - name: Générer SECRET_KEY
+      command: openssl rand -hex 32
+      register: iris_secret
+      changed_when: false
+
+    - name: Injecter SECRET_KEY
+      lineinfile:
+        path: "{{ iris_dir }}/.env"
+        regexp: '^SECRET_KEY='
+        line: "SECRET_KEY={{ iris_secret.stdout }}"
+
+    # 🔹 Modifier ports HTTP et HTTPS
+    - name: Modifier port HTTPS
+      replace:
+        path: "{{ iris_dir }}/docker-compose.yml"
+        regexp: '443:443'
+        replace: '{{ iris_https_port }}:443'
+
+    - name: Modifier port HTTP
+      replace:
+        path: "{{ iris_dir }}/docker-compose.yml"
+        regexp: '80:80'
+        replace: '{{ iris_http_port }}:80'
+
+    # 🔹 Vérification des ports
+    - name: Vérifier ports modifiés
+      shell: "grep -E '{{ iris_https_port }}|{{ iris_http_port }}' {{ iris_dir }}/docker-compose.yml || true"
+      register: ports_check
+      changed_when: false
+
+    - name: Afficher configuration des ports
+      debug:
+        msg: "Ports configurés - HTTP: {{ iris_http_port }}, HTTPS: {{ iris_https_port }}"
+
+    # 🔹 Nettoyer anciens conteneurs
+    - name: Stop + supprimer anciens conteneurs
+      command: docker compose down -v
+      args:
+        chdir: "{{ iris_dir }}"
+      ignore_errors: yes
+      register: cleanup_result
+
+    # 🔹 Lancer IRIS
+    - name: Lancer IRIS
+      command: docker compose up -d
+      args:
+        chdir: "{{ iris_dir }}"
+      register: launch_result
+
+    - name: Vérifier que les conteneurs sont démarrés
+      command: docker compose ps
+      args:
+        chdir: "{{ iris_dir }}"
+      register: container_status
+
+    - name: Afficher statut des conteneurs
+      debug:
+        var: container_status.stdout_lines
+
+    # 🔹 Attente du service
+    - name: Attente que IRIS soit disponible
+      uri:
+        url: "https://localhost:{{ iris_https_port }}"
+        validate_certs: false
+        status_code: [200, 302]
+      register: result
+      until: result.status in [200, 302]
+      retries: 30
+      delay: 10
+      ignore_errors: yes
+
+    # 🔹 Diagnostic si échec
+    - name: Afficher les logs Docker en cas d'échec
+      command: docker compose logs --tail=50
+      args:
+        chdir: "{{ iris_dir }}"
+      register: docker_logs
+      when: result.failed is defined and result.failed
+      ignore_errors: yes
+
+    - name: Afficher logs pour debug
+      debug:
+        var: docker_logs.stdout_lines
+      when: result.failed is defined and result.failed
+
+    # 🔹 Résultat final
+    - name: Résultat final
+      debug:
+        msg: |
+          ✅ IRIS opérationnel !
+          URL : https://{{ ansible_host | default('localhost') }}:{{ iris_https_port }}
+          Login : administrator / irisadmin
+      when: result.status is defined and result.status in [200, 302]
+
+    - name: Message d'échec
+      debug:
+        msg: |
+          ❌ Problème lors du déploiement d'IRIS
+          Vérifiez les logs avec : docker compose logs
+          Chemin : {{ iris_dir }}
+      when: result.failed is defined and result.failed
