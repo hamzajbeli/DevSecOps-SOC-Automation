@@ -11,7 +11,7 @@ couvre la sécurité du développement et la détection d'incidents.
 
 ## Architecture
 
-![Architecture DevSecOps et SOC](architecture.jpg)
+![Architecture DevSecOps et SOC](architecture devsecops et soc automatiser.jpg)
 
 ### vm-DevSecOps : pipeline CI/CD
 GitHub et Jenkins pilotent le pipeline. La sécurité est intégrée dès le code :
